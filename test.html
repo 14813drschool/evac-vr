@@ -25,7 +25,7 @@
 const L=document.getElementById('log');let n=0,drawn=false;
 const log=m=>{L.textContent+=(performance.now()/1000).toFixed(1)+'s '+m+'\n';};
 window.addEventListener('error',e=>log('ERR '+(e.message||e.error)));
-log('three='+THREE.REVISION);log('UA: '+navigator.userAgent);
+log('three='+THREE.REVISION+' (baseLayer)');log('UA: '+navigator.userAgent);
 const r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);r.xr.enabled=true;r.xr.setReferenceSpaceType('local-floor');
 document.body.appendChild(r.domElement);
 const sc=new THREE.Scene();sc.background=new THREE.Color(0x7fb2d0);
