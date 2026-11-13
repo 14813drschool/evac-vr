@@ -51,6 +51,8 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(46px,9vw,84px);lin
   border-top:8px solid;border-image:repeating-linear-gradient(135deg,var(--hazard) 0 12px,#17201c 12px 24px) 8}
 .keys{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:14px;line-height:1.45;margin:0}
 .keys dt{font-weight:700}
+.diagbox summary{cursor:pointer;font-size:14px;color:var(--muted)}
+#diag{white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.4;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--line);padding:8px;margin:8px 0 0}
 .keys dd{margin:0;color:var(--muted)}
 
 #hud{position:fixed;left:0;right:0;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;pointer-events:none;
@@ -140,7 +142,8 @@ th,td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line)
         <button class="btn alt" id="startFlat">เล่นบนหน้าจอ</button>
       </div>
       <p class="note" id="vrNote"></p>
-      <p class="note">รุ่น 1.1</p>
+      <p class="note">รุ่น 1.2</p>
+      <details class="diagbox"><summary>บันทึกการทำงาน (สำหรับแก้ปัญหา)</summary><pre id="diag">ยังไม่มีบันทึก</pre></details>
       <dl class="keys">
         <dt>แว่น VR</dt><dd>จอยซ้ายเดิน จอยขวาหมุน ชี้พื้นแล้วกดทริกเกอร์เพื่อวาร์ป ย่อตัวจริงหรือกด B/Y เพื่อก้ม</dd>
         <dt>คอมพิวเตอร์</dt><dd>W A S D เดิน ลากเมาส์เพื่อมอง กด C เพื่อก้ม กด 1 2 3 เพื่อตอบ</dd>
@@ -198,6 +201,10 @@ th,td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line)
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
+let DIAG=[];try{const old=JSON.parse(sessionStorage.getItem('evac-diag')||'[]');if(old.length)DIAG=['--- รอบก่อน ---'].concat(old.slice(-25),['--- รอบนี้ ---']);}catch(e){}
+function dlog(m){DIAG.push((performance.now()/1000).toFixed(1)+'s '+m);if(DIAG.length>60)DIAG.splice(0,DIAG.length-60);
+  try{sessionStorage.setItem('evac-diag',JSON.stringify(DIAG.filter(l=>l.indexOf('---')!==0)));}catch(e){}
+  const el=$('diag');if(el)el.textContent=DIAG.join('\n');}
 if(!window.THREE){document.body.insertAdjacentHTML('beforeend','<div id="fatal">โหลดระบบกราฟิกไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วเปิดหน้านี้ใหม่</div>');return;}
 
 /* ================= ส่วนที่ครูแก้ไขได้ง่าย =================
@@ -299,6 +306,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.75));
 renderer.setSize(innerWidth,innerHeight);
 renderer.xr.enabled=true;
 renderer.xr.setReferenceSpaceType('local-floor');
+dlog('เปิดหน้า '+(navigator.userAgent.match(/OculusBrowser\/[\d.]+|Chrome\/[\d.]+/g)||[]).join(' ')+' WebGL2='+renderer.capabilities.isWebGL2+' three='+THREE.REVISION);
+renderer.domElement.addEventListener('webglcontextlost',ev=>{ev.preventDefault();dlog('ERR WebGL context lost');});
+renderer.domElement.addEventListener('webglcontextrestored',()=>dlog('WebGL context restored'));
 $('stage').appendChild(renderer.domElement);
 const SKY=0xbfe0ee;
 const scene=new THREE.Scene(); scene.background=new THREE.Color(SKY);
@@ -812,14 +822,19 @@ function updatePointers(){
 async function enterXR(){
   await ready;
   try{
+    dlog('กดเข้า VR');xrFrames=0;xrDrawn=false;
     const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});
+    dlog('ได้ session VR');
+    s.addEventListener('visibilitychange',()=>dlog('session '+s.visibilityState));
     await renderer.xr.setSession(s);
+    try{const l=s.renderState.baseLayer;dlog('ตั้งค่า session เสร็จ ภาพ '+(l?l.framebufferWidth+'x'+l.framebufferHeight:'ไม่มี baseLayer'));}catch(e){dlog('ERR baseLayer '+e.message);}
     G.xr=true;lastMode='vr';camera.position.set(0,0,0);camera.rotation.set(0,0,0);rig.position.set(0,0,0);rig.rotation.set(0,0,0);
     try{const l=s.renderState.baseLayer;if(l&&'fixedFoveation' in l)l.fixedFoveation=1;}catch(e){}
     s.addEventListener('end',onXrEnd);start('vr');pendingPlace=pendingPlace||null;
-  }catch(err){$('vrNote').textContent='เข้าโหมด VR ไม่สำเร็จ ('+(err&&err.name||'ข้อผิดพลาด')+') ลองปิดแท็บอื่นแล้วเปิดหน้านี้ใหม่ หรือเล่นบนหน้าจอไปก่อน';}
+  }catch(err){dlog('ERR เข้า VR ไม่ได้ '+(err&&(err.name+' '+err.message)));$('vrNote').textContent='เข้าโหมด VR ไม่สำเร็จ ('+(err&&err.name||'ข้อผิดพลาด')+') ลองปิดแท็บอื่นแล้วเปิดหน้านี้ใหม่ หรือเล่นบนหน้าจอไปก่อน';}
 }
 function onXrEnd(){
+  dlog('ออกจาก VR หลังผ่านไป '+xrFrames+' เฟรม วาดสำเร็จ='+xrDrawn);
   hudMesh.visible=false;cardMesh.visible=false;tpRing.visible=false;G.xr=false;G.manualCrouch=false;camera.position.set(0,1.6,0);
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
   if(G.lastResult&&(G.endPending||G.state==='done'))showResults();else toMenu();
@@ -834,10 +849,11 @@ function checkXR(){
 
 /* ---------- วนรอบหลัก ---------- */
 const clock=new THREE.Clock();let tNow=0;
-const seenErr={};
+const seenErr={};let xrFrames=0,xrDrawn=false;
 function report(e){
   const msg=String(e&&e.message||e).slice(0,120);if(seenErr[msg])return;seenErr[msg]=1;
   try{console.error(e);}catch(_){}
+  dlog('ERR '+msg);
   G.toast='ข้อผิดพลาด: '+msg;toastT=30;const t=$('toast');t.textContent=G.toast;t.hidden=false;
   if(renderer.xr.isPresenting)hudMesh.visible=true;
 }
@@ -847,7 +863,8 @@ function animate(){
   const dt=Math.min(clock.getDelta(),.05);tNow+=dt;
   try{step(dt);}catch(e){report(e);}
   const presenting=renderer.xr.isPresenting;
-  try{if(presenting||(G.state!=='menu'&&G.state!=='done'))renderer.render(scene,camera);}catch(e){report(e);}
+  if(presenting){xrFrames++;if(xrFrames===1||xrFrames===30||xrFrames%600===0)dlog('เฟรม VR ที่ '+xrFrames);}
+  try{if(presenting||(G.state!=='menu'&&G.state!=='done')){renderer.render(scene,camera);if(presenting&&!xrDrawn){xrDrawn=true;dlog('วาดภาพในแว่นสำเร็จครั้งแรก');}}}catch(e){report(e);}
 }
 function step(dt){
   const playing=(G.state==='play'||G.state==='hold'||G.state==='card')&&G.state!=='menu';

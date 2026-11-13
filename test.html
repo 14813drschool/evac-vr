@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ทดสอบ VR</title>
+<style>
+  body{margin:0;background:#00724a;color:#fff;font-family:sans-serif;font-size:20px}
+  .box{max-width:640px;margin:0 auto;padding:24px 16px;display:grid;gap:16px}
+  button{font-size:22px;padding:16px;border:0;border-radius:6px;background:#fff;color:#00563a;font-weight:700}
+  button[disabled]{opacity:.5}
+  pre{background:#fff;color:#10231b;padding:10px;white-space:pre-wrap;font-size:14px;margin:0}
+  canvas{position:fixed;inset:0;z-index:-1}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1 style="margin:0">ทดสอบ VR แบบง่าย</h1>
+  <p style="margin:0">ถ้ากดแล้วเห็นกล่องสีหมุนอยู่ตรงหน้า แปลว่าแว่นและเบราว์เซอร์เข้า VR ได้ปกติ กดปุ่ม Meta แล้วเลือกออก เพื่อกลับมาดูบันทึก</p>
+  <button id="go" disabled>กำลังตรวจ…</button>
+  <pre id="log"></pre>
+</div>
+<script src="three.min.js"></script>
+<script>
+const L=document.getElementById('log');let n=0,drawn=false;
+const log=m=>{L.textContent+=(performance.now()/1000).toFixed(1)+'s '+m+'\n';};
+window.addEventListener('error',e=>log('ERR '+(e.message||e.error)));
+log('three='+THREE.REVISION+' '+((navigator.userAgent.match(/OculusBrowser\/[\d.]+/)||[''])[0]));
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);r.xr.enabled=true;r.xr.setReferenceSpaceType('local-floor');
+document.body.appendChild(r.domElement);
+const sc=new THREE.Scene();sc.background=new THREE.Color(0x7fb2d0);
+const cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,50);
+sc.add(new THREE.HemisphereLight(0xffffff,0x445544,1.2));
+const cube=new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.4),new THREE.MeshLambertMaterial({color:0xffc400}));cube.position.set(0,1.5,-1.5);sc.add(cube);
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(10,10),new THREE.MeshLambertMaterial({color:0x5d8a57}));fl.rotation.x=-Math.PI/2;sc.add(fl);
+r.setAnimationLoop(()=>{cube.rotation.y+=.02;cube.rotation.x+=.01;
+  if(r.xr.isPresenting){n++;if(n===1||n===60)log('เฟรม VR ที่ '+n);}
+  r.render(sc,cam);if(r.xr.isPresenting&&!drawn){drawn=true;log('วาดภาพในแว่นสำเร็จ');}});
+const b=document.getElementById('go');
+if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{b.disabled=!ok;b.textContent=ok?'เข้า VR':'เบราว์เซอร์นี้เข้า VR ไม่ได้';});
+else b.textContent='เบราว์เซอร์นี้ไม่มี WebXR';
+b.onclick=async()=>{try{log('กดเข้า VR');const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});log('ได้ session');
+  await r.xr.setSession(s);log('ตั้งค่า session เสร็จ');s.addEventListener('end',()=>log('ออกจาก VR หลัง '+n+' เฟรม'));}catch(e){log('ERR '+e.name+' '+e.message);}};
+</script>
+</body>
+</html>
